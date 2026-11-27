@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartPosture — Bảng điều khiển tư thế</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#0a0a0c; --panel:#161619; --panel2:#1d1d20; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --text:#ffffff; --dim:#9a9aa2;
+  --accent:#ff2e63; --link:#ff5b85; --chip-bg:rgba(255,255,255,.07); --accent-shadow:rgba(255,46,99,.38);
+  --good:#34c759; --good-dim:rgba(52,199,89,.16); --warn:#ff9500; --warn-dim:rgba(255,149,0,.16); --bad:#ff3b30; --bad-dim:rgba(255,59,48,.16);
+  --font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  --shadow-product:3px 5px 30px rgba(0,0,0,.5);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"]{
+  --bg:#f5f5f7; --panel:#ffffff; --panel2:#fafafc; --line:#e0e0e0; --line2:#d2d2d7;
+  --text:#1d1d1f; --dim:#7a7a7a;
+  --accent:#ff2e63; --link:#e01c53; --chip-bg:rgba(210,210,215,.64); --accent-shadow:rgba(255,46,99,.28);
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);min-height:100%;-webkit-font-smoothing:antialiased;transition:background-color .3s,color .3s}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 20px 64px;opacity:0;transform:translateY(8px);transition:opacity .6s ease,transform .6s ease}
+.wrap.loaded{opacity:1;transform:none}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:20px;margin-bottom:26px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+h1{font-size:21px;font-weight:600;margin:0;letter-spacing:-.374px}
+.sub{color:var(--dim);font-size:13px;font-family:var(--font);letter-spacing:-.15px;margin-top:5px}
+.clockbox{font-family:var(--font);font-size:13px;color:var(--dim);background:var(--panel);border:1px solid var(--line);padding:8px 16px;border-radius:9999px;font-variant-numeric:tabular-nums}
+.headerbtns{display:flex;align-items:center;gap:8px}
+.theme-toggle{background:var(--chip-bg);border:none;color:var(--text);width:38px;height:38px;padding:0;border-radius:50%;font-size:15px;display:flex;align-items:center;justify-content:center;transition:transform .1s,opacity .15s}
+.theme-toggle:hover{opacity:.82}
+.theme-toggle:active{transform:scale(.9)}
+.qtip{width:14px;height:14px;border-radius:50%;border:1px solid var(--line2);color:var(--dim);font-size:9.5px;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none;font-family:var(--font);user-select:none}
+.qtip:hover,.qtip:focus{border-color:var(--link);color:var(--link);outline:none}
+.tooltip-popup{position:fixed;max-width:230px;background:var(--panel2);border:1px solid var(--line2);color:var(--text);font-family:var(--font);font-size:12px;line-height:1.5;padding:10px 12px;border-radius:12px;z-index:60;display:none;box-shadow:0 16px 40px -16px rgba(0,0,0,.7)}
+.tooltip-popup.show{display:block}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 14px 36px -24px rgba(0,0,0,.7)}
+.camwrap{position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3;border:1px solid var(--line);box-shadow:var(--shadow-product);transition:border-color .3s}
+.camwrap.warn{border-color:var(--warn)}
+.camwrap.bad{border-color:var(--bad)}
+.camwrap video,.camwrap canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.camwrap video{transform:scaleX(-1)}
+.camwrap canvas{transform:scaleX(-1)}
+.overlay-label{position:absolute;left:10px;bottom:10px;font-family:var(--font);font-size:11.5px;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);padding:5px 10px;border-radius:9999px;z-index:3;color:#fff}
+.btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+button{font-family:var(--font);font-weight:400;font-size:14px;background:var(--accent);color:#fff;border:none;padding:11px 20px;border-radius:9999px;cursor:pointer;letter-spacing:-.2px;transition:opacity .15s,transform .1s;box-shadow:0 6px 18px -6px var(--accent-shadow)}
+button:hover:not(:disabled){opacity:.9}
+button:active:not(:disabled){transform:scale(.95)}
+button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line2);box-shadow:none}
+button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.rowline{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line)}
+.rowline:last-child{border-bottom:none}
+.rowline .k{color:var(--dim);font-size:13px;display:flex;align-items:center;gap:7px;letter-spacing:-.1px}
+.rowline .v{font-family:var(--font);font-size:15px;font-weight:600;letter-spacing:-.2px;transition:color .3s ease;font-variant-numeric:tabular-nums}
+.v.good{color:var(--good)}.v.warn{color:var(--warn)}.v.bad{color:var(--bad)}
+.micon{display:inline-flex;flex:none;color:var(--dim);transition:color .3s ease}
+.micon.good{color:var(--good)}
+.micon.bad{color:var(--bad)}
+.status-banner{font-family:var(--font);font-size:13px;padding:12px 14px;border-radius:12px;margin-bottom:16px;border:1px solid var(--line);color:var(--dim);background:var(--panel);display:flex;align-items:center;gap:9px;transition:.25s;letter-spacing:-.1px}
+.status-banner::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.status-banner.good{color:var(--good);border-color:transparent;background:var(--good-dim)}
+.status-banner.warn{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
+.status-banner.bad{color:var(--bad);border-color:transparent;background:var(--bad-dim)}
+h2{font-size:14px;text-transform:none;letter-spacing:-.224px;color:var(--text);font-weight:600;margin:0 0 14px;font-family:var(--font)}
+table{width:100%;border-collapse:collapse;font-family:var(--font);font-size:12.5px}
+th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line2);color:var(--dim);font-weight:600;font-size:11px;position:sticky;top:0;background:var(--panel2)}
+td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);color:var(--text);font-variant-numeric:tabular-nums}
+tr:hover td{background:rgba(127,127,127,.08)}
+.logbox{max-height:230px;overflow-y:auto;overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+.note{font-size:13px;color:var(--dim);line-height:1.55;margin-top:14px;letter-spacing:-.1px}
+label.range{display:block;font-size:13px;color:var(--dim);margin-top:16px;letter-spacing:-.1px}
+input[type=range]{width:100%;accent-color:var(--link);margin-top:8px}
+#trendCanvas{width:100%;display:block;height:140px}
+.legend{display:flex;gap:16px;margin-top:8px;font-family:var(--font);font-size:12px;color:var(--dim)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+.legend .dot.fhi{background:var(--good)}
+.legend .dot.rsi{background:var(--warn)}
+.gaugecard{display:flex;flex-direction:column;align-items:center;text-align:center;padding-bottom:14px}
+#gaugeSvg{width:100%;max-width:270px;margin-top:2px}
+.gauge-label{font-family:var(--font);font-weight:600;font-size:19px;margin-top:2px;color:var(--dim);transition:color .3s;letter-spacing:-.3px}
+.gauge-label.good{color:var(--good)}
+.gauge-label.warn{color:var(--warn)}
+.gauge-label.bad{color:var(--bad)}
+.gauge-sub{font-family:var(--font);font-size:12px;color:var(--dim);margin-top:2px}
+#needleGroup{will-change:transform}
+.loading-screen{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .5s ease,visibility .5s}
+.loading-screen.hide{opacity:0;visibility:hidden;pointer-events:none}
+.loading-inner{display:flex;flex-direction:column;align-items:center;gap:12px}
+.loading-logo{position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center}
+.loading-dot{width:16px;height:16px;border-radius:50%;background:var(--link);z-index:2}
+.pulse-ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--link);opacity:0;animation:pulseRing 2s ease-out infinite;will-change:transform,opacity}
+.pulse-ring.delay{animation-delay:1s}
+@keyframes pulseRing{0%{transform:scale(.3);opacity:.75}100%{transform:scale(1.7);opacity:0}}
+.loading-text{font-family:var(--font);font-weight:600;font-size:16px;color:var(--text);letter-spacing:-.3px}
+.loading-sub{font-family:var(--font);font-size:12px;color:var(--dim);min-height:16px}
+.loading-bar{width:170px;height:3px;border-radius:3px;background:var(--line2);overflow:hidden;margin-top:2px}
+.loading-bar-fill{height:100%;width:6%;background:var(--link);border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.report-section{margin-top:16px}
+.report-section:first-child{margin-top:0}
+.report-h{font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;font-weight:600}
+.report-text{font-size:13.5px;line-height:1.6;color:var(--text)}
+.report-list{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--dim);line-height:1.7}
+.report-list li{color:var(--text)}
+.report-stats{display:flex;gap:22px;flex-wrap:wrap}
+.report-stat .n{font-size:21px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.report-stat .l{font-size:11px;color:var(--dim);margin-top:2px}
+.pop{animation:popScale .35s ease}
+@keyframes popScale{0%{transform:scale(1)}35%{transform:scale(1.35)}100%{transform:scale(1)}}
+.modal-backdrop{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-backdrop.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:18px;max-width:440px;width:100%;padding:22px 22px 18px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);max-height:min(90vh,640px);overflow:auto}
+.modal h2{margin-bottom:8px}
+.check-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:13.5px;line-height:1.45}
+.check-item input{margin-top:3px;accent-color:var(--link);flex:none}
+.live-checks{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.live-chip{font-size:11.5px;padding:5px 10px;border-radius:9999px;background:var(--chip-bg);color:var(--dim);border:1px solid var(--line)}
+.live-chip.ok{color:var(--good);border-color:transparent;background:var(--good-dim)}
+.live-chip.bad{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
+.hist-empty{font-size:13px;color:var(--dim);line-height:1.5}
+.hist-compare{font-size:12.5px;color:var(--dim);margin-bottom:10px}
+.hist-delta.up{color:var(--good)}.hist-delta.down{color:var(--bad)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.card-head h2{margin:0}
+.btn-xs{padding:7px 12px;font-size:12px;box-shadow:none}
+.camwrap.paused{border-color:var(--link)}
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{--bg:#fff;--panel:#fff;--panel2:#fafafa;--line:#ddd;--line2:#ccc;--text:#111;--dim:#555}
+  *,*::before,*::after{transition:none !important;animation:none !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .loading-screen,.no-print,header .headerbtns,.btnrow,label.range,.note,.camwrap,.status-banner,.gaugecard,canvas,#trendCanvas,.legend,#tooltipPopup,.modal-backdrop{display:none !important}
+  body{background:#fff;color:#111}
+  .wrap{opacity:1;transform:none;max-width:none;padding:0}
+  .grid{display:block}
+  .card{box-shadow:none;border:1px solid #ddd;break-inside:avoid;background:#fff}
+  #reportCard,#historyCard{display:block !important}
+  .logbox{max-height:none;overflow:visible}
+  th{position:static;background:#f4f4f4;color:#333}
+}
+@media(max-width:480px){
+  .wrap{padding:18px 14px 44px}
+  h1{font-size:19px}
+  .card{padding:18px;border-radius:16px}
+  .btnrow{flex-direction:column}
+  .btnrow button{width:100%;min-height:46px}
+  #gaugeSvg{max-width:230px}
+  .status-banner{font-size:12px}
+  .clockbox{font-size:11.5px;padding:6px 10px}
+  header{margin-bottom:18px}
+}
+</style>
+</head>
+<body>
+<div id="loadingScreen" class="loading-screen">
+  <div class="loading-inner">
+    <div class="loading-logo">
+      <span class="pulse-ring"></span>
+      <span class="pulse-ring delay"></span>
+      <div class="loading-dot"></div>
+    </div>
+    <div class="loading-text">SmartPosture</div>
+    <div class="loading-sub" id="loadingSub">Đang tải mô hình AI…</div>
+    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+  </div>
+</div>
+<div class="wrap">
+<header>
+  <div>
+    <div class="brand"><span class="dot"></span><h1>SmartPosture</h1></div>
+    <div class="sub" data-i18n="subtitle">Đồ án Introduce Engineer — theo dõi tư thế qua webcam, không cần nhìn thấy lưng</div>
+  </div>
+  <div class="headerbtns">
+    <button id="langToggle" class="theme-toggle" style="font-size:12px;font-weight:700" title="Switch language / Đổi ngôn ngữ">VI</button>
+    <button id="themeToggle" class="theme-toggle" title="Đổi giao diện sáng/tối">🌙</button>
+    <div class="clockbox" id="sessionClock">00:00</div>
+  </div>
+</header>
+
+<div class="grid">
+  <div>
+    <div class="card">
+      <div class="camwrap" id="camwrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div class="overlay-label" id="overlayLabel">Chưa hiệu chuẩn</div>
+      </div>
+      <div class="btnrow">
+        <button id="calibBtn" data-i18n="calibBtn">Bắt đầu hiệu chuẩn (5s)</button>
+        <button id="pauseBtn" class="secondary" disabled data-i18n="pauseBtn">Tạm dừng</button>
+        <button id="endBtn" class="secondary" disabled data-i18n="endBtn">Kết thúc phiên</button>
+        <button id="resetBtn" class="secondary" data-i18n="resetBtn">Đặt lại</button>
+        <button id="exportBtn" class="secondary" disabled data-i18n="exportBtn">Xuất dữ liệu (.csv)</button>
+        <button id="reportBtn" class="secondary" disabled data-i18n="reportBtn">Xem kết quả phiên</button>
+      </div>
+      <div class="status-banner" id="calibQuality" style="display:none;margin-top:10px"></div>
+      <label class="range"><span data-i18n="threshPrefix">Ngưỡng cảnh báo — hiện tại:</span> <span id="threshLabel">85%</span> <span data-i18n="threshSuffix">so với khung chuẩn</span>
+        <input type="range" id="thresh" min="70" max="95" value="85">
+      </label>
+      <div class="note" data-i18n="note">Đặt camera ngang tầm mắt, ngồi ở tư thế bạn cho là chuẩn, rồi nhấn hiệu chuẩn. Hệ thống chỉ cảnh báo khi lệch tư thế liên tục quá 5 giây. Chỉ số góc gập cổ và nghiêng đầu cần thấy rõ hai tai — nếu tóc/góc quay che tai, hai chỉ số này hiện "thấp tin cậy" và tự động không tính vào cảnh báo để tránh báo sai.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="status-banner" id="statusBanner">Đang chờ hiệu chuẩn…</div>
+    <div class="card gaugecard">
+      <h2 data-i18n="h2Gauge">Trạng thái tư thế tức thời</h2>
+      <svg id="gaugeSvg" viewBox="0 0 220 130">
+        <path d="M20,120 A90,90 0 0,1 65,42" stroke="var(--bad)" stroke-width="16" fill="none" stroke-linecap="round"/>
+        <path d="M65,42 A90,90 0 0,1 155,42" stroke="var(--warn)" stroke-width="16" fill="none"/>
+        <path d="M155,42 A90,90 0 0,1 200,120" stroke="var(--good)" stroke-width="16" fill="none" stroke-linecap="round"/>
+        <g id="needleGroup"><line x1="110" y1="120" x2="110" y2="45" stroke="#fff" stroke-width="4" stroke-linecap="round"/></g>
+        <circle cx="110" cy="120" r="8" fill="#fff"/>
+      </svg>
+      <div class="gauge-label" id="gaugeLabel">Đang chờ hiệu chuẩn…</div>
+      <div class="gauge-sub" id="gaugeSub">Hiệu chuẩn để bắt đầu theo dõi</div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="h2Metrics">Chỉ số sinh cơ học</h2>
+      <div class="rowline"><span class="k"><svg class="micon" id="fhiIcon" viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>Forward Head Index (FHI)<span class="qtip" data-key="fhi" tabindex="0">?</span></span><span class="v" id="fhiVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" id="rsiIcon" viewBox="0 0 24 24" width="15" height="15"><path d="M4 18c0-5 3-9 8-9s8 4 8 9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="12" cy="6" r="2.4" stroke="currentColor" stroke-width="2" fill="none"/></svg>Rounded Shoulder Index (RSI)<span class="qtip" data-key="rsi" tabindex="0">?</span></span><span class="v" id="rsiVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" id="neckIcon" viewBox="0 0 24 24" width="15" height="15"><path d="M5 19h14M5 19L15 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M9 19a6 6 0 0 1 3-8" stroke="currentColor" stroke-width="1.6" fill="none"/></svg><span data-i18n="lblNeck">Góc gập cổ (so với chuẩn)</span><span class="qtip" data-key="neck" tabindex="0">?</span></span><span class="v" id="neckVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" id="shTiltIcon" viewBox="0 0 24 24" width="15" height="15"><path d="M4 8h16M12 4v16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M4 8l-2 5h4l-2-5zM20 8l-2 5h4l-2-5z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg><span data-i18n="lblShTilt">Lệch vai (trái/phải)</span><span class="qtip" data-key="shtilt" tabindex="0">?</span></span><span class="v" id="shTiltVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" id="headTiltIcon" style="transform:rotate(14deg)" viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span data-i18n="lblHeadTilt">Nghiêng đầu</span><span class="qtip" data-key="headtilt" tabindex="0">?</span></span><span class="v" id="headTiltVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" id="screenDistIcon" viewBox="0 0 24 24" width="15" height="15"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span data-i18n="lblScreenDist">Khoảng cách tới màn hình</span><span class="qtip" data-key="dist" tabindex="0">?</span></span><span class="v" id="screenDistVal">—</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="lblStreak">Thời gian lệch liên tục</span></span><span class="v" id="streakVal">0.0s</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" viewBox="0 0 24 24" width="15" height="15"><path d="M12 3a5 5 0 0 0-5 5v3c0 1-1 3-2 4h14c-1-1-2-3-2-4V8a5 5 0 0 0-5-5z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg><span data-i18n="lblAlerts">Tổng số lần cảnh báo</span></span><span class="v" id="alertCount">0</span></div>
+      <div class="rowline"><span class="k"><svg class="micon" viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="lblGoodPct">% thời gian tư thế tốt</span></span><span class="v" id="goodPct">—</span></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2 data-i18n="h2Cush">Đệm ghế cảm biến</h2>
+      <div class="btnrow">
+        <button id="cushConnBtn" data-i18n="cushConnect">Kết nối đệm (USB)</button>
+        <button id="cushZeroBtn" class="secondary" disabled data-i18n="cushZero">Đo nền đệm trống (5s)</button>
+      </div>
+      <div class="note" id="cushStatus"></div>
+      <div class="note" id="cushWarn" style="color:var(--bad)"></div>
+      <div id="cushBars" style="display:flex;gap:6px;height:56px;align-items:flex-end;margin:10px 0 4px"></div>
+      <div id="cushBarLabels" style="display:flex;gap:6px;font-size:11px;color:var(--dim);text-align:center;margin-bottom:8px"></div>
+      <div class="rowline"><span class="k">Tổng tải T</span><span class="v" id="cushT">—</span></div>
+      <div class="rowline"><span class="k">Mông trái–phải</span><span class="v" id="cushBLR">—</span></div>
+      <div class="rowline"><span class="k">Đùi trái–phải</span><span class="v" id="cushTLR">—</span></div>
+      <div class="rowline"><span class="k">Trước–sau FB</span><span class="v" id="cushFB">—</span></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2 data-i18n="h2Rec">Ghi dữ liệu huấn luyện</h2>
+      <label class="range"><span data-i18n="recLabelPrefix">Nhãn tư thế đang ngồi</span>
+        <select id="recLabel" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line2);font-family:inherit"></select>
+      </label>
+      <div class="btnrow">
+        <button id="recStartBtn" data-i18n="recStart">Bắt đầu ghi (sau 3s)</button>
+        <button id="recStopBtn" class="secondary" disabled data-i18n="recStop">Dừng ghi</button>
+        <button id="recExportBtn" class="secondary" disabled data-i18n="recExport">Xuất CSV huấn luyện</button>
+      </div>
+      <div class="note" id="recStatus"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2 data-i18n="h2Trend">Xu hướng tư thế</h2>
+      <canvas id="trendCanvas"></canvas>
+      <div class="legend">
+        <span><i class="dot fhi"></i>FHI%</span>
+        <span><i class="dot rsi"></i>RSI%</span>
+        <span style="color:var(--warn)" data-i18n="legendThresh">┈┈ Ngưỡng cảnh báo</span>
+      </div>
+    </div>
+    <div class="card" id="reportCard" style="margin-top:14px;display:none">
+      <div class="card-head">
+        <h2 data-i18n="h2Report">Báo cáo phiên</h2>
+        <button id="printBtn" class="secondary btn-xs no-print" data-i18n="printBtn">In / lưu PDF</button>
+      </div>
+      <div id="reportBody"></div>
+    </div>
+    <div class="card no-print" id="historyCard" style="margin-top:14px">
+      <div class="card-head">
+        <h2 data-i18n="h2History">Lịch sử phiên</h2>
+        <button id="clearHistBtn" class="secondary btn-xs" data-i18n="clearHistBtn">Xóa lịch sử</button>
+      </div>
+      <div class="hist-compare" id="histCompare"></div>
+      <div class="logbox">
+        <table>
+          <thead><tr>
+            <th data-i18n="thDate">Ngày</th>
+            <th data-i18n="repDuration">Thời lượng</th>
+            <th data-i18n="lblGoodPct">% tốt</th>
+            <th data-i18n="thVsPrev">So với phiên trước</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+      <div class="hist-empty" id="histEmpty" data-i18n="histEmpty">Chưa có phiên nào được lưu trên máy này.</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2 data-i18n="h2Log">Nhật ký dữ liệu (mỗi 5 giây)</h2>
+      <div class="logbox">
+        <table>
+          <thead><tr><th data-i18n="thTime">Thời điểm</th><th>FHI%</th><th>RSI%</th><th data-i18n="thStatus">Trạng thái</th><th data-i18n="thIssues">Lỗi cụ thể</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="tooltipPopup" class="tooltip-popup"></div>
+<div id="calibModal" class="modal-backdrop no-print" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2 data-i18n="calibGuideTitle">Chuẩn bị trước khi hiệu chuẩn</h2>
+    <p class="note" style="margin-top:0" data-i18n="calibGuideLead">Làm theo checklist rồi ngồi ở tư thế bạn cho là chuẩn. Camera sẽ lấy mốc 5 giây.</p>
+    <div class="live-checks">
+      <span class="live-chip" id="chipFace">Mặt</span>
+      <span class="live-chip" id="chipShoulders">Hai vai</span>
+      <span class="live-chip" id="chipEars">Hai tai</span>
+    </div>
+    <div class="note" id="earWarn" style="margin-top:6px;display:none" data-i18n="earWarn">Chưa thấy rõ hai tai — góc cổ/nghiêng đầu sẽ bị loại khỏi cảnh báo (thấp tin cậy).</div>
+    <label class="check-item"><input type="checkbox" id="ckEye"><span data-i18n="ckEye">Camera ngang tầm mắt (không nhìn từ trên xuống)</span></label>
+    <label class="check-item"><input type="checkbox" id="ckLight"><span data-i18n="ckLight">Đủ sáng, khuôn mặt không ngược sáng mạnh</span></label>
+    <label class="check-item"><input type="checkbox" id="ckBody"><span data-i18n="ckBody">Nhìn thấy mặt và cả hai vai trong khung hình</span></label>
+    <label class="check-item"><input type="checkbox" id="ckSit"><span data-i18n="ckSit">Tôi đang ngồi đúng tư thế muốn lấy làm chuẩn</span></label>
+    <div class="btnrow" style="margin-top:14px">
+      <button id="calibStartNow" data-i18n="calibStartNow">Bắt đầu hiệu chuẩn (5s)</button>
+      <button id="calibCancel" class="secondary" data-i18n="calibCancel">Hủy</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const videoEl = document.getElementById('video');
+const canvasEl = document.getElementById('canvas');
+const ctx = canvasEl.getContext('2d');
+const camwrap = document.getElementById('camwrap');
+const overlayLabel = document.getElementById('overlayLabel');
+const calibBtn = document.getElementById('calibBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const endBtn = document.getElementById('endBtn');
+const resetBtn = document.getElementById('resetBtn');
+const exportBtn = document.getElementById('exportBtn');
+const reportBtn = document.getElementById('reportBtn');
+const printBtn = document.getElementById('printBtn');
+const reportCard = document.getElementById('reportCard');
+const reportBody = document.getElementById('reportBody');
+const threshInput = document.getElementById('thresh');
+const threshLabel = document.getElementById('threshLabel');
+const statusBanner = document.getElementById('statusBanner');
+const fhiVal = document.getElementById('fhiVal');
+const rsiVal = document.getElementById('rsiVal');
+const streakVal = document.getElementById('streakVal');
+const alertCount = document.getElementById('alertCount');
+const goodPct = document.getElementById('goodPct');
+const neckVal = document.getElementById('neckVal');
+const shTiltVal = document.getElementById('shTiltVal');
+const headTiltVal = document.getElementById('headTiltVal');
+const screenDistVal = document.getElementById('screenDistVal');
+const logBody = document.getElementById('logBody');
+const sessionClock = document.getElementById('sessionClock');
+const trendCanvas = document.getElementById('trendCanvas');
+const tctx = trendCanvas.getContext('2d');
+const TREND_MAX_POINTS = 60;
+const needleGroup = document.getElementById('needleGroup');
+const gaugeLabel = document.getElementById('gaugeLabel');
+const gaugeSub = document.getElementById('gaugeSub');
+const loadingScreen = document.getElementById('loadingScreen');
+const loadingSub = document.getElementById('loadingSub');
+const loadingBarFill = document.getElementById('loadingBarFill');
+const wrapEl = document.querySelector('.wrap');
+const themeToggle = document.getElementById('themeToggle');
+const langToggle = document.getElementById('langToggle');
+const tooltipPopup = document.getElementById('tooltipPopup');
+let loadingHidden = false;
+const fhiIcon = document.getElementById('fhiIcon'), rsiIcon = document.getElementById('rsiIcon'),
+      neckIcon = document.getElementById('neckIcon'), shTiltIcon = document.getElementById('shTiltIcon'),
+      headTiltIcon = document.getElementById('headTiltIcon'), screenDistIcon = document.getElementById('screenDistIcon');
+
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  themeToggle.textContent = t==='light' ? '🌙' : '☀️';
+  try{ localStorage.setItem('sp_theme', t); }catch(e){}
+}
+let savedTheme = 'dark';
+try{ savedTheme = localStorage.getItem('sp_theme') || 'dark'; }catch(e){}
+applyTheme(savedTheme);
+themeToggle.onclick = () => applyTheme(document.documentElement.getAttribute('data-theme')==='light' ? 'dark' : 'light');
+
+// --- Song ngữ VI/EN ---
+const I18N = {
+  subtitle:{vi:'Đồ án Nhập môn Kỹ thuật — theo dõi tư thế qua webcam, không cần nhìn thấy lưng', en:'Intro to Engineering project — webcam posture tracking, no need to see your back'},
+  calibBtn:{vi:'Bắt đầu hiệu chuẩn (5s)', en:'Start calibration (5s)'},
+  pauseBtn:{vi:'Tạm dừng', en:'Pause'},
+  resumeBtn:{vi:'Tiếp tục', en:'Resume'},
+  endBtn:{vi:'Kết thúc phiên', en:'End session'},
+  resetBtn:{vi:'Đặt lại', en:'Reset'},
+  exportBtn:{vi:'Xuất dữ liệu (.csv)', en:'Export data (.csv)'},
+  threshPrefix:{vi:'Ngưỡng cảnh báo — hiện tại:', en:'Alert threshold — currently:'},
+  threshSuffix:{vi:'so với khung chuẩn', en:'of your calibrated baseline'},
+  note:{vi:'Đặt camera ngang tầm mắt, ngồi ở tư thế bạn cho là chuẩn, rồi nhấn hiệu chuẩn. Hệ thống chỉ cảnh báo khi lệch tư thế liên tục quá 5 giây. Chỉ số góc gập cổ và nghiêng đầu cần thấy rõ hai tai — nếu tóc/góc quay che tai, hai chỉ số này hiện "thấp tin cậy" và tự động không tính vào cảnh báo để tránh báo sai.', en:'Place the camera at eye level, sit in what you consider correct posture, then calibrate. The system only alerts after a deviation lasts more than 5 seconds. Neck angle and head tilt need both ears visible — if hair or camera angle hides an ear, these show "low confidence" and are excluded from alerts.'},
+  h2Gauge:{vi:'Trạng thái tư thế tức thời', en:'Real-time posture status'},
+  h2Metrics:{vi:'Chỉ số sinh cơ học', en:'Biomechanical metrics'},
+  h2Trend:{vi:'Xu hướng tư thế', en:'Posture trend'},
+  h2Log:{vi:'Nhật ký dữ liệu (mỗi 5 giây)', en:'Data log (every 5s)'},
+  legendThresh:{vi:'┈┈ Ngưỡng cảnh báo', en:'┈┈ Alert threshold'},
+  thTime:{vi:'Thời điểm', en:'Time'}, thStatus:{vi:'Trạng thái', en:'Status'}, thIssues:{vi:'Lỗi cụ thể', en:'Issues'},
+  lblNeck:{vi:'Góc gập cổ (so với chuẩn)', en:'Neck flexion angle (vs baseline)'},
+  lblShTilt:{vi:'Lệch vai (trái/phải)', en:'Shoulder tilt (L/R)'},
+  lblHeadTilt:{vi:'Nghiêng đầu', en:'Head tilt'},
+  lblScreenDist:{vi:'Khoảng cách tới màn hình', en:'Distance to screen'},
+  lblStreak:{vi:'Thời gian lệch liên tục', en:'Continuous deviation time'},
+  lblAlerts:{vi:'Tổng số lần cảnh báo', en:'Total alerts'},
+  lblGoodPct:{vi:'% thời gian tư thế tốt', en:'% good posture time'},
+  overlayIdle:{vi:'Chưa hiệu chuẩn', en:'Not calibrated'},
+  overlayCountdown:{vi:'Hiệu chuẩn:', en:'Calibrating:'},
+  overlayFail:{vi:'Hiệu chuẩn thất bại, thử lại', en:'Calibration failed, try again'},
+  overlayDone:{vi:'Đã hiệu chuẩn — đang theo dõi', en:'Calibrated — now monitoring'},
+  overlayPaused:{vi:'Đã tạm dừng — không tính ngồi sai', en:'Paused — standing up is not counted'},
+  overlayEnded:{vi:'Phiên đã kết thúc — xem báo cáo bên dưới', en:'Session ended — see the report below'},
+  overlayNoCam:{vi:'Không thể truy cập camera', en:'Cannot access camera'},
+  loadingModel:{vi:'Đang tải mô hình AI…', en:'Loading AI model…'},
+  loadingCamera:{vi:'Đang khởi động camera…', en:'Starting camera…'},
+  loadingCamError:{vi:'Lỗi camera — kiểm tra quyền truy cập', en:'Camera error — check permissions'},
+  bannerGood:{vi:'Tư thế ổn định', en:'Posture is good'},
+  bannerWarnPrefix:{vi:'Đang lệch:', en:'Deviating:'}, bannerWarnSuffix:{vi:'— theo dõi…', en:'— monitoring…'},
+  bannerBadPrefix:{vi:'Cảnh báo kéo dài:', en:'Sustained alert:'},
+  bannerWaiting:{vi:'Đang chờ hiệu chuẩn…', en:'Waiting for calibration…'},
+  bannerEnded:{vi:'Phiên theo dõi đã kết thúc', en:'Monitoring session ended'},
+  bannerPaused:{vi:'Phiên đang tạm dừng — đứng dậy không bị tính là ngồi sai', en:'Session paused — standing up is not counted as bad posture'},
+  gaugeGood:{vi:'Tốt', en:'Good'}, gaugeWarn:{vi:'Cảnh báo', en:'Warning'}, gaugeBad:{vi:'Xấu', en:'Bad'},
+  gaugeSubGood:{vi:'Tiếp tục duy trì tư thế này', en:'Keep maintaining this posture'},
+  gaugeSubWaiting:{vi:'Đang theo dõi…', en:'Monitoring…'},
+  gaugeSubIdle:{vi:'Hiệu chuẩn để bắt đầu theo dõi', en:'Calibrate to start monitoring'},
+  gaugeSubEnded:{vi:'Nhấn hiệu chuẩn để bắt đầu phiên mới', en:'Calibrate to start a new session'},
+  gaugePaused:{vi:'Tạm dừng', en:'Paused'},
+  gaugeSubPaused:{vi:'Nhấn Tiếp tục khi ngồi lại', en:'Press Resume when you sit back down'},
+  lowConfidence:{vi:'—/thấp tin cậy', en:'—/low confidence'},
+  themeTitle:{vi:'Đổi giao diện sáng/tối', en:'Toggle light/dark theme'},
+  reportBtn:{vi:'Xem kết quả phiên', en:'View session report'},
+  h2Report:{vi:'Báo cáo phiên', en:'Session report'},
+  repDuration:{vi:'Thời lượng phiên', en:'Session duration'},
+  repLogHeader:{vi:'Nhật ký hệ thống (mỗi 5 giây)', en:'System log (every 5s)'},
+  repLogEmpty:{vi:'Chưa có dòng log nào trong phiên này.', en:'No log rows in this session yet.'},
+  reportNoData:{vi:'Chưa đủ dữ liệu — hãy hiệu chuẩn và theo dõi ít nhất khoảng 15-20 giây trước khi xem báo cáo.', en:'Not enough data yet — calibrate and monitor for at least 15-20 seconds before viewing the report.'},
+  repOverview:{vi:'Tổng quan', en:'Overview'},
+  repGoodPct:{vi:'% thời gian tốt', en:'% good time'},
+  repAvgFhi:{vi:'FHI% trung bình', en:'Avg FHI%'},
+  repAvgRsi:{vi:'RSI% trung bình', en:'Avg RSI%'},
+  repAlerts:{vi:'Lần cảnh báo', en:'Alerts'},
+  repAssessGood:{vi:'Tư thế của bạn khá tốt trong suốt phiên theo dõi này — tiếp tục duy trì nhé.', en:'Your posture was quite good throughout this session — keep it up.'},
+  repAssessMed:{vi:'Tư thế ở mức trung bình trong phiên này — có những khoảng thời gian cần chú ý điều chỉnh thêm.', en:'Posture was average this session — there were periods that need more attention.'},
+  repAssessBad:{vi:'Tư thế lệch khá nhiều trong phiên này. Nên kiểm tra lại độ cao ghế/màn hình và nghỉ giải lao thường xuyên hơn.', en:'Posture deviated quite a lot this session. Consider checking your chair/screen height and taking breaks more often.'},
+  repTimeHeader:{vi:'Thời điểm hay ngồi sai', en:'When posture tended to slip'},
+  repTimeNone:{vi:'Không có khoảng thời gian nào lệch tư thế đáng kể — rất tốt.', en:'No period had significant posture deviation — great job.'},
+  repSegment:{vi:'Phút', en:'Minute'},
+  repMostlyGood:{vi:'chủ yếu tốt', en:'mostly good'},
+  repTrendHeader:{vi:'Xu hướng sai tư thế', en:'Posture deviation trend'},
+  repTrendWorse:{vi:'Tư thế có xu hướng xấu dần về cuối phiên (có thể do mỏi mệt) — nên đứng dậy vận động giữa giờ.', en:'Posture tended to get worse toward the end of the session (possibly fatigue) — consider standing up to move around midway.'},
+  repTrendBetter:{vi:'Tư thế có xu hướng cải thiện dần về cuối phiên.', en:'Posture tended to improve toward the end of the session.'},
+  repTrendStable:{vi:'Tư thế khá ổn định trong suốt phiên, không có xu hướng xấu đi rõ rệt.', en:'Posture was fairly stable throughout the session, with no clear worsening trend.'},
+  repTopIssue:{vi:'Lỗi xuất hiện nhiều nhất', en:'Most frequent issue'},
+  repOutOf:{vi:'trên', en:'out of'},
+  repLogs:{vi:'lần ghi log', en:'log entries'},
+  notifyTitle:{vi:'SmartPosture — Cảnh báo tư thế', en:'SmartPosture — Posture Alert'},
+  notifyBodyPrefix:{vi:'Bạn đang lệch tư thế:', en:'You are deviating from good posture:'},
+  calibGuideTitle:{vi:'Chuẩn bị trước khi hiệu chuẩn', en:'Before you calibrate'},
+  calibGuideLead:{vi:'Làm theo checklist rồi ngồi ở tư thế bạn cho là chuẩn. Camera sẽ lấy mốc 5 giây.', en:'Follow the checklist, then sit in the posture you consider ideal. The camera takes a 5-second baseline.'},
+  calibStartNow:{vi:'Bắt đầu hiệu chuẩn (5s)', en:'Start calibration (5s)'},
+  calibCancel:{vi:'Hủy', en:'Cancel'},
+  earWarn:{vi:'Chưa thấy rõ hai tai — góc cổ/nghiêng đầu sẽ bị loại khỏi cảnh báo (thấp tin cậy).', en:'Ears not clearly visible — neck angle/head tilt are excluded from alerts (low confidence).'},
+  ckEye:{vi:'Camera ngang tầm mắt (không nhìn từ trên xuống)', en:'Camera at eye level (not looking down)'},
+  ckLight:{vi:'Đủ sáng, khuôn mặt không ngược sáng mạnh', en:'Good light, no strong backlight on your face'},
+  ckBody:{vi:'Nhìn thấy mặt và cả hai vai trong khung hình', en:'Face and both shoulders are in frame'},
+  ckSit:{vi:'Tôi đang ngồi đúng tư thế muốn lấy làm chuẩn', en:'I am sitting in the posture I want as baseline'},
+  h2History:{vi:'Lịch sử phiên', en:'Session history'},
+  clearHistBtn:{vi:'Xóa lịch sử', en:'Clear history'},
+  histEmpty:{vi:'Chưa có phiên nào được lưu trên máy này.', en:'No sessions saved on this device yet.'},
+  thDate:{vi:'Ngày', en:'Date'},
+  thVsPrev:{vi:'So với phiên trước', en:'vs previous session'},
+  printBtn:{vi:'In / lưu PDF', en:'Print / save PDF'},
+  h2Cush:{vi:'Đệm ghế cảm biến', en:'Sensor seat cushion'},
+  cushConnect:{vi:'Kết nối đệm (USB)', en:'Connect cushion (USB)'},
+  cushZero:{vi:'Đo nền đệm trống (5s)', en:'Measure empty baseline (5s)'},
+  h2Rec:{vi:'Ghi dữ liệu huấn luyện', en:'Record training data'},
+  recLabelPrefix:{vi:'Nhãn tư thế đang ngồi', en:'Posture label you are sitting in'},
+  recStart:{vi:'Bắt đầu ghi (sau 3s)', en:'Start recording (in 3s)'},
+  recStop:{vi:'Dừng ghi', en:'Stop recording'},
+  recExport:{vi:'Xuất CSV huấn luyện', en:'Export training CSV'}
+};
+const ISSUES = {
+  headForward:{vi:'cúi đầu', en:'head forward'}, shoulderRound:{vi:'gù vai', en:'rounded shoulders'},
+  neckBend:{vi:'gập cổ', en:'neck bend'}, shoulderTilt:{vi:'lệch vai', en:'shoulder tilt'},
+  headTilt:{vi:'nghiêng đầu', en:'head tilt'}, tooClose:{vi:'quá gần màn hình', en:'too close to screen'},
+  leanSide:{vi:'nghiêng người sang một bên', en:'leaning to one side'}, leanFwd:{vi:'chồm người ra trước', en:'leaning forward'},
+  leanBack:{vi:'ngả/trượt ra sau', en:'slouching back'}, legCross:{vi:'vắt chéo chân / lệch đùi', en:'crossed legs / uneven thighs'}
+};
+const TOOLTIPS = {
+  fhi:{vi:'FHI đo mức đầu đưa ra trước so với vai (khoảng cách miệng–vai). Thấp hơn ngưỡng nghĩa là bạn đang cúi đầu về phía trước.', en:'FHI measures how far your head juts forward relative to your shoulders. Below threshold means your head is leaning forward.'},
+  rsi:{vi:'RSI so sánh độ rộng vai hiện tại với lúc hiệu chuẩn. Vai co rút (gù vai) làm giá trị giảm xuống dưới ngưỡng.', en:'RSI compares current shoulder width to your calibrated baseline. Rounded shoulders push this below threshold.'},
+  neck:{vi:'Góc giữa đường vai–tai và phương thẳng đứng, so với hiệu chuẩn. Lệch trên 10° coi là gập cổ quá mức.', en:'Angle between the shoulder–ear line and vertical, vs baseline. Over 10° deviation counts as excessive neck bend.'},
+  shtilt:{vi:'Chênh lệch chiều cao vai trái/phải so với hiệu chuẩn — cho biết bạn có đang lệch người sang một bên.', en:'Height difference between left/right shoulder vs baseline — shows if you are leaning to one side.'},
+  headtilt:{vi:'Chênh lệch chiều cao hai tai so với hiệu chuẩn — cho biết đầu có nghiêng sang một bên.', en:'Height difference between the two ears vs baseline — shows if your head is tilted.'},
+  dist:{vi:'Khoảng cách hai mắt so với hiệu chuẩn — mắt xa nhau hơn nghĩa là bạn đang ngồi gần màn hình hơn.', en:'Eye distance vs baseline — a larger value means you are sitting closer to the screen.'}
+};
+let currentLang = 'vi';
+try{ currentLang = localStorage.getItem('sp_lang') || 'vi'; }catch(e){}
+function tr(key){ return I18N[key][currentLang]; }
+function ti(key){ return ISSUES[key][currentLang]; }
+function applyI18n(){
+  document.documentElement.lang = currentLang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = I18N[el.dataset.i18n][currentLang]; });
+  langToggle.textContent = currentLang==='vi' ? 'VI' : 'EN';
+  themeToggle.title = tr('themeTitle');
+  if(!calibrated && !calibrating){
+    overlayLabel.textContent = tr('overlayIdle');
+    statusBanner.textContent = tr('bannerWaiting');
+    gaugeLabel.textContent = tr('bannerWaiting');
+    gaugeSub.textContent = tr('gaugeSubIdle');
+  }
+  if(!loadingHidden) loadingSub.textContent = tr('loadingModel');
+  tooltipPopup.classList.remove('show');
+}
+langToggle.onclick = () => { currentLang = currentLang==='vi'?'en':'vi'; try{localStorage.setItem('sp_lang',currentLang);}catch(e){} applyI18n(); };
+document.querySelectorAll('.qtip').forEach(q=>{
+  q.addEventListener('click', e=>{
+    e.stopPropagation();
+    const key = q.dataset.key;
+    const already = tooltipPopup.classList.contains('show') && tooltipPopup.dataset.key===key;
+    tooltipPopup.classList.remove('show');
+    if(already) return;
+    tooltipPopup.dataset.key = key;
+    tooltipPopup.textContent = TOOLTIPS[key][currentLang];
+    const rect = q.getBoundingClientRect();
+    tooltipPopup.style.top = (rect.bottom+8)+'px';
+    tooltipPopup.style.left = Math.max(8, Math.min(rect.left, window.innerWidth-246))+'px';
+    tooltipPopup.classList.add('show');
+  });
+});
+document.addEventListener('click', ()=>tooltipPopup.classList.remove('show'));
+
+// Đếm số mượt (count-up) thay vì nhảy số đột ngột
+function animateNumber(el, target, decimals, suffix, showSign){
+  const start = parseFloat(el.dataset.raw ?? target);
+  el.dataset.raw = target;
+  const t0 = performance.now(), dur = 300;
+  function tick(now){
+    const p = Math.min(1,(now-t0)/dur);
+    const eased = 1-Math.pow(1-p,3);
+    const cur = start + (target-start)*eased;
+    el.textContent = (showSign && cur>=0 ? '+' : '') + cur.toFixed(decimals) + suffix;
+    if(p<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+function popEl(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+loadingBarFill.style.width = '30%'; // script MediaPipe đã tải xong tới đây
+function hideLoading(){
+  if(loadingHidden) return;
+  loadingHidden = true;
+  loadingBarFill.style.width = '100%';
+  setTimeout(()=>{
+    loadingScreen.classList.add('hide');
+    wrapEl.classList.add('loaded');
+    setTimeout(()=>loadingScreen.remove(), 600);
+  }, 220);
+}
+setTimeout(hideLoading, 12000); // an toàn: tự ẩn dù có lỗi mạng/model
+needleGroup.style.transformOrigin = '110px 120px';
+needleGroup.style.transition = 'transform .4s cubic-bezier(.4,0,.2,1)';
+function setGauge(score, level, text){
+  const angle = (Math.max(0,Math.min(100,score))/100)*180 - 90;
+  needleGroup.style.transform = `rotate(${angle}deg)`;
+  gaugeLabel.className = 'gauge-label '+(level||'');
+  gaugeLabel.textContent = text;
+}
+
+let threshold = 0.85;
+threshInput.oninput = () => { threshold = +threshInput.value/100; threshLabel.textContent = threshInput.value+'%'; };
+
+
+
+// --- Moving average buffer for jitter filtering ---
+const SMOOTH_N = 5;
+let buf = [];
+function smooth(lm){
+  buf.push(lm);
+  if (buf.length > SMOOTH_N) buf.shift();
+  const out = [];
+  for (let i=0;i<lm.length;i++){
+    let sx=0,sy=0,sv=0,c=0;
+    for (const f of buf){ if(f[i]){ sx+=f[i].x; sy+=f[i].y; sv+=(f[i].visibility===undefined?1:f[i].visibility); c++; } }
+    out[i] = c? {x:sx/c, y:sy/c, visibility:sv/c} : lm[i];
+  }
+  return out;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function mid(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+let calibrating=false, calibSamples=[], calibrated=false;
+let baseline = { faceH:0, chinShoulder:0, shoulderW:0, neckAngle:0, shTilt:0, headTilt:0, ipd:0 };
+applyI18n();
+
+let badSince=null, alerts=0, sessionStart=null, sessionEndedAt=null, goodMs=0, badMs=0, lastTick=null, currentIssueText='';
+let logRows = [];
+let audioCtx=null, alertInterval=null;
+function playAlertSequence(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    [0,0.22,0.44].forEach((t,i)=>{
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type='square'; o.frequency.value = i%2===0?880:660;
+      g.gain.setValueAtTime(0.0001,t0+t);
+      g.gain.exponentialRampToValueAtTime(0.08,t0+t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+t+0.16);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0+t); o.stop(t0+t+0.18);
+    });
+  }catch(e){}
+}
+function stopAlertLoop(){ if(alertInterval){ clearInterval(alertInterval); alertInterval=null; } }
+function requestNotifyPermission(){
+  if('Notification' in window && Notification.permission==='default'){
+    try{ Notification.requestPermission(); }catch(e){}
+  }
+}
+function fireAlert(){
+  playAlertSequence();
+  if(navigator.vibrate) navigator.vibrate([120,60,120,60,120]);
+  if('Notification' in window && Notification.permission==='granted'){
+    try{ new Notification('SmartPosture', { body: currentIssueText || tr('bannerBadPrefix'), tag:'smartposture-alert', silent:true }); }catch(e){}
+  }
+}
+function sendNotification(bodyText){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  try{
+    const n = new Notification(tr('notifyTitle'), { body: `${tr('notifyBodyPrefix')} ${bodyText}`, tag:'smartposture-alert', silent:true });
+    setTimeout(()=>n.close(), 8000);
+  }catch(e){}
+}
+
+function resizeTrendCanvas(){
+  const rect = trendCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio||1;
+  trendCanvas.width = Math.max(1,Math.round(rect.width*dpr));
+  trendCanvas.height = Math.round(140*dpr);
+  tctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function drawTrend(){
+  const w = trendCanvas.clientWidth||1, h = 140;
+  tctx.clearRect(0,0,w,h);
+  tctx.strokeStyle = 'rgba(255,255,255,.06)'; tctx.lineWidth = 1;
+  [0,25,50,75,100].forEach(v=>{
+    const y = h - (v/100)*(h-16) - 8;
+    tctx.beginPath(); tctx.moveTo(0,y); tctx.lineTo(w,y); tctx.stroke();
+  });
+  const threshY = h - threshold*100/100*(h-16) - 8;
+  tctx.strokeStyle = 'rgba(240,169,59,.5)'; tctx.setLineDash([4,4]);
+  tctx.beginPath(); tctx.moveTo(0,threshY); tctx.lineTo(w,threshY); tctx.stroke();
+  tctx.setLineDash([]);
+  const data = logRows.slice(-TREND_MAX_POINTS);
+  if(data.length<2) return;
+  const stepX = w/(TREND_MAX_POINTS-1);
+  const offset = TREND_MAX_POINTS - data.length;
+  function series(key,color){
+    tctx.beginPath();
+    data.forEach((r,i)=>{
+      const x = (offset+i)*stepX, y = h - (r[key]/100)*(h-16) - 8;
+      i===0?tctx.moveTo(x,y):tctx.lineTo(x,y);
+    });
+    tctx.strokeStyle = color; tctx.lineWidth = 2; tctx.lineJoin = 'round'; tctx.stroke();
+  }
+  series('fhi','#4FD6C4'); series('rsi','#F0A93B');
+}
+window.addEventListener('resize', ()=>{ resizeTrendCanvas(); drawTrend(); });
+
+// ===== Đệm cảm biến 4 FSR (Web Serial; ESP32-C6: t_ms,FSR1..FSR4, 10 Hz, 115200 baud, ADC thô 12 bit) =====
+const cs = (vi,en)=>currentLang==='vi'?vi:en;
+// Cấu hình kênh: thứ tự = thứ tự cột trong dòng dữ liệu. Trái/phải tính theo người ngồi (theo tài liệu của nhóm làm đệm).
+const CUSH_CH = [
+  {key:'lb', vi:'Mông trái', en:'Left buttock'},
+  {key:'rb', vi:'Mông phải', en:'Right buttock'},
+  {key:'rt', vi:'Đùi phải',  en:'Right thigh'},
+  {key:'lt', vi:'Đùi trái',  en:'Left thigh'}
+];
+const CUSH_N = CUSH_CH.length, CI = Object.fromEntries(CUSH_CH.map((c,i)=>[c.key,i]));
+const CUSH_TH = {side:.12, fwd:.25, back:.25, leg:.3, sitRatio:.3}; // ngưỡng khởi đầu từ các khoảng giá trị nhóm cung cấp — chỉnh theo bộ dữ liệu thật
+const zeros = () => Array(CUSH_N).fill(0);
+const cush = {connected:false, raw:zeros(), zero:zeros(), last:0, base:null, cur:null, zeroing:false, zeroBuf:[], sitBuf:[]};
+const cushConnBtn=document.getElementById('cushConnBtn'), cushZeroBtn=document.getElementById('cushZeroBtn');
+const cushStatus=document.getElementById('cushStatus'), cushWarn=document.getElementById('cushWarn'), cushBars=document.getElementById('cushBars'), cushBarLabels=document.getElementById('cushBarLabels');
+const cushT=document.getElementById('cushT'), cushBLR=document.getElementById('cushBLR'), cushTLR=document.getElementById('cushTLR'), cushFB=document.getElementById('cushFB');
+for(let i=0;i<CUSH_N;i++){ const b=document.createElement('div'); b.style.cssText='flex:1;border-radius:4px;height:0%;background:var(--good);transition:height .1s'; cushBars.appendChild(b); const l=document.createElement('span'); l.style.flex='1'; cushBarLabels.appendChild(l); }
+function cushLabels(){ [...cushBarLabels.children].forEach((l,i)=>{ l.textContent = cs(CUSH_CH[i].vi, CUSH_CH[i].en); }); [...cushBars.children].forEach((b,i)=>{ b.title = cs(CUSH_CH[i].vi, CUSH_CH[i].en); }); }
+cushLabels(); langToggle.addEventListener('click', cushLabels);
+const meanN = rows => Array.from({length:CUSH_N}, (_,i)=>rows.reduce((a,r)=>a+r[i],0)/rows.length);
+function cushSet(vi,en){ cushStatus.textContent = cs(vi,en); }
+function cushLive(){ return cush.connected && performance.now()-cush.last<1500; }
+function cushMetrics(raw){
+  const s = raw.map((v,i)=>Math.max(0, v-cush.zero[i]));
+  const lb=s[CI.lb], rb=s[CI.rb], rt=s[CI.rt], lt=s[CI.lt], T=lb+rb+rt+lt;
+  const asym = (a,b) => (a+b)>0 ? (a-b)/(a+b) : 0;      // (a−b)/(a+b), dương = nghiêng về phía a
+  return {s, T, blr:asym(rb,lb), tlr:asym(rt,lt), fb:T>0 ? (rt+lt-lb-rb)/T : 0};
+}
+function cushRender(){
+  [...cushBars.children].forEach((b,i)=>{ b.style.height=(cush.raw[i]/4095*100)+'%'; b.style.background = cush.raw[i]>=4000?'var(--bad)':'var(--good)'; });
+  const m = cushMetrics(cush.raw);
+  cushT.textContent = Math.round(m.T); cushBLR.textContent = m.blr.toFixed(2); cushTLR.textContent = m.tlr.toFixed(2); cushFB.textContent = m.fb.toFixed(2);
+  cushWarn.textContent = cush.raw.some(v=>v>=4000) ? cs('Có kênh bão hoà (ADC ≥ 4000): giảm R_M hoặc phủ lớp đệm mềm hơn để lực lan ra.','A channel is saturated (ADC ≥ 4000): lower R_M or add a softer top layer to spread the load.') : '';
+}
+function cushParse(line){
+  const p = line.trim().split(',');
+  let v;
+  if(p.length===CUSH_N+1) v = p.slice(1).map(Number);      // t_ms,FSR1..FSR4
+  else if(p.length===CUSH_N) v = p.map(Number);            // chỉ có các kênh
+  else return;
+  if(v.some(Number.isNaN)) return;                          // dòng tiêu đề bị bỏ qua ở đây
+  cush.raw = v; cush.last = performance.now();
+  if(cush.zeroing) cush.zeroBuf.push(v);
+  if(calibrating) cush.sitBuf.push(v);
+  cushRender();
+}
+async function cushConnect(){
+  if(!('serial' in navigator)){ cushSet('Trình duyệt không hỗ trợ Web Serial. Dùng Chrome/Edge và mở trang qua https hoặc localhost.','Web Serial is not supported. Use Chrome/Edge and open the page over https or localhost.'); return; }
+  try{
+    const port = await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    cush.connected = true; cushConnBtn.disabled = true; cushZeroBtn.disabled = false;
+    cushSet('Đã kết nối đệm. Đo nền khi đệm trống, rồi hiệu chuẩn camera khi ngồi thẳng.','Cushion connected. Measure the empty baseline, then calibrate the camera while sitting upright.');
+    const dec = new TextDecoderStream(); port.readable.pipeTo(dec.writable).catch(()=>{});
+    const reader = dec.readable.getReader(); let carry = '';
+    for(;;){ const {value,done} = await reader.read(); if(done) break; carry += value; const lines = carry.split('\n'); carry = lines.pop(); lines.forEach(cushParse); }
+  }catch(e){ cushSet('Không kết nối được đệm: '+e.message,'Could not connect to the cushion: '+e.message); }
+  cush.connected = false; cushConnBtn.disabled = false; cushZeroBtn.disabled = true;
+}
+cushConnBtn.onclick = cushConnect;
+cushZeroBtn.onclick = () => {
+  cush.zeroing = true; cush.zeroBuf = []; cushZeroBtn.disabled = true;
+  cushSet('Đang đo nền — không ai ngồi lên đệm (5s)…','Measuring baseline — keep the cushion empty (5s)…');
+  setTimeout(()=>{
+    cush.zeroing = false; cushZeroBtn.disabled = !cush.connected;
+    if(cush.zeroBuf.length>=10){ cush.zero = meanN(cush.zeroBuf); cushSet('Đã lưu nền đệm trống. Ngồi thẳng rồi hiệu chuẩn camera.','Empty baseline saved. Sit upright and calibrate the camera.'); }
+    else cushSet('Chưa nhận đủ dữ liệu từ đệm, hãy thử lại.','Not enough data from the cushion, try again.');
+  },5000);
+};
+function cushCalibrate(){ cush.base = cush.sitBuf.length>=5 ? cushMetrics(meanN(cush.sitBuf)) : null; }
+function cushIssues(issues){
+  cush.cur = null;
+  if(!cushLive() || !cush.base) return;
+  const m = cushMetrics(cush.raw); cush.cur = m;
+  if(m.T < cush.base.T*CUSH_TH.sitRatio) return; // đệm báo không có người ngồi
+  const dB=m.blr-cush.base.blr, dT=m.tlr-cush.base.tlr, dF=m.fb-cush.base.fb;
+  if(hy('leanSide', Math.abs(dB)>CUSH_TH.side, Math.abs(dB)<CUSH_TH.side*0.7)) issues.push('leanSide');
+  if(hy('leanFwd', dF>CUSH_TH.fwd, dF<CUSH_TH.fwd*0.7)) issues.push('leanFwd');
+  if(hy('leanBack', dF<-CUSH_TH.back, dF>-CUSH_TH.back*0.7)) issues.push('leanBack');
+  if(hy('legCross', Math.abs(dT)>CUSH_TH.leg, Math.abs(dT)<CUSH_TH.leg*0.7)) issues.push('legCross');
+}
+function cushLog(){
+  if(!cushLive()) return ',,,,,,,';
+  const m = cush.cur || cushMetrics(cush.raw);
+  return [Math.round(m.T), m.blr.toFixed(3), m.tlr.toFixed(3), m.fb.toFixed(3), ...cush.raw].join(',');
+}
+document.getElementById('printBtn').onclick = () => window.print();
+
+// ===== Tạm dừng =====
+let paused = false;
+function setPaused(v){
+  paused = v; pauseBtn.textContent = v ? cs('Tiếp tục','Resume') : tr('pauseBtn');
+  if(v){ lastTick=null; badSince=null; goodSince=null; stopAlertLoop(); camwrap.dataset.alerted=''; camwrap.classList.remove('warn','bad'); overlayLabel.textContent = cs('Đã tạm dừng','Paused'); }
+  else if(calibrated){ overlayLabel.textContent = tr('overlayDone'); }
+}
+pauseBtn.onclick = () => setPaused(!paused);
+endBtn.addEventListener('click', ()=>{ setPaused(false); pauseBtn.disabled = true; });
+resetBtn.addEventListener('click', ()=>{ setPaused(false); pauseBtn.disabled = true; });
+
+// ===== Ghi dữ liệu có nhãn (10 Hz: đặc trưng camera + 6 kênh đệm) =====
+let lastM = null, lastVisOk = false, lastMT = 0;
+const LABELS = [['upright','Ngồi thẳng','Upright'],['slouch','Gù lưng','Slouched'],['head_fwd','Cúi đầu ra trước','Head forward'],
+  ['lean_left','Nghiêng trái','Lean left'],['lean_right','Nghiêng phải','Lean right'],['perch','Ngồi mép ghế','Perched on edge'],
+  ['leg_cross','Vắt chéo chân','Legs crossed'],['lean_back','Ngả/trượt ra sau','Slouch back']];
+const REC_HEADER = 't_s,label,seg,cam_ok,fhi_ratio,rsi_ratio,neck_dev,shoulder_tilt_dev,head_tilt_dev,dist_ratio,raw_chin_shoulder,raw_shoulder_w,raw_ipd,raw_neck_angle,raw_head_tilt,raw_shoulder_tilt,cush_live,cush_T,cush_bLR,cush_tLR,cush_FB,ch1,ch2,ch3,ch4';
+const rec = {on:false, t0:0, seg:0, label:'', rows:[], counts:{}, timer:null, wait:null};
+const recLabel=document.getElementById('recLabel'), recStartBtn=document.getElementById('recStartBtn'), recStopBtn=document.getElementById('recStopBtn');
+const recExportBtn=document.getElementById('recExportBtn'), recStatus=document.getElementById('recStatus');
+function buildLabels(){
+  const cur = recLabel.value;
+  recLabel.innerHTML = LABELS.map(l=>`<option value="${l[0]}">${currentLang==='vi'?l[1]:l[2]}</option>`).join('');
+  if(cur) recLabel.value = cur;
+}
+buildLabels(); langToggle.addEventListener('click', buildLabels);
+const fx = v => (typeof v==='number' && isFinite(v)) ? v.toFixed(4) : '';
+function recStats(){
+  const parts = Object.entries(rec.counts).map(([k,n])=>`${k}: ${n}`).join(' | ');
+  recStatus.textContent = (rec.on ? cs('Đang ghi nhãn ','Recording label ')+rec.label+' — ' : '') + cs('Tổng ','Total ')+rec.rows.length+(parts?' ('+parts+')':'');
+}
+function recSample(){
+  if(paused) return;
+  const now = performance.now();
+  const m = (lastM && now-lastMT<500) ? lastM : null;
+  const camOk = !!(m && lastVisOk);
+  let ratio = ['','','','','',''];
+  if(camOk && calibrated){
+    ratio = [m.chinShoulder/baseline.chinShoulder, m.shoulderW/baseline.shoulderW,
+      (m.neckAngle!==null && baseline.neckAngle!==null) ? m.neckAngle-baseline.neckAngle : '',
+      m.shTilt-baseline.shTilt,
+      (m.headTilt!==null && baseline.headTilt!==null) ? m.headTilt-baseline.headTilt : '',
+      m.ipd/baseline.ipd];
+  }
+  const raw = m ? [m.chinShoulder,m.shoulderW,m.ipd,m.neckAngle,m.headTilt,m.shTilt] : ['','','','','',''];
+  const live = cushLive(), cm = live ? cushMetrics(cush.raw) : null;
+  rec.rows.push([((now-rec.t0)/1000).toFixed(2), rec.label, rec.seg, camOk?1:0, ...ratio.map(fx), ...raw.map(fx),
+    live?1:0, cm?Math.round(cm.T):'', cm?fx(cm.blr):'', cm?fx(cm.tlr):'', cm?fx(cm.fb):'', ...(live?cush.raw:Array(CUSH_N).fill(''))].join(','));
+  rec.counts[rec.label] = (rec.counts[rec.label]||0)+1;
+  if(rec.rows.length%10===0) recStats();
+}
+recStartBtn.onclick = () => {
+  if(rec.on || rec.wait) return;
+  rec.label = recLabel.value; recStartBtn.disabled = true; recLabel.disabled = true;
+  let cd = 3;
+  const warn = (cushLive()?'':cs(' Đệm chưa kết nối: cột đệm sẽ trống.',' Cushion not connected: cushion columns will be empty.')) + (calibrated?'':cs(' Camera chưa hiệu chuẩn: chỉ số chuẩn hoá sẽ trống (vẫn có dữ liệu thô).',' Camera not calibrated: normalised metrics will be empty (raw values are still recorded).'));
+  recStatus.textContent = cs('Vào tư thế… ','Get into posture… ')+cd+'s.'+warn;
+  rec.wait = setInterval(()=>{
+    cd--;
+    if(cd>0){ recStatus.textContent = cs('Vào tư thế… ','Get into posture… ')+cd+'s.'+warn; return; }
+    clearInterval(rec.wait); rec.wait = null;
+    rec.on = true; rec.seg++; rec.t0 = performance.now(); recStopBtn.disabled = false;
+    rec.timer = setInterval(recSample, 100); recStats();
+  },1000);
+};
+recStopBtn.onclick = () => {
+  clearInterval(rec.timer); rec.on = false; recStopBtn.disabled = true; recStartBtn.disabled = false; recLabel.disabled = false;
+  recExportBtn.disabled = rec.rows.length===0; recStats();
+};
+recExportBtn.onclick = () => {
+  const d = new Date(), z = n=>String(n).padStart(2,'0');
+  const name = `smartposture_train_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.csv`;
+  const url = URL.createObjectURL(new Blob([REC_HEADER+'\n'+rec.rows.join('\n')], {type:'text/csv;charset=utf-8;'}));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+};
+
+// ===== Độ tin cậy: visibility, hysteresis, chất lượng hiệu chuẩn =====
+const CORE_IDX = [0,2,5,9,10,11,12], VIS_MIN = 0.5, GOOD_RESET_MS = 2500;
+let visLost = false, goodSince = null, calibRejected = 0;
+const calibQuality = document.getElementById('calibQuality');
+const hState = {};
+function hy(key, enter, exit){ if(enter) hState[key]=true; else if(exit) hState[key]=false; return !!hState[key]; }
+function hReset(){ Object.keys(hState).forEach(k=>delete hState[k]); }
+function markLost(){
+  visLost = true; lastTick = null; badSince = null; goodSince = null;
+  stopAlertLoop(); camwrap.dataset.alerted = ''; camwrap.classList.remove('warn','bad');
+  overlayLabel.textContent = cs('Không thấy rõ bạn — kiểm tra ánh sáng và khung hình','Cannot see you clearly — check lighting and framing');
+}
+function calibQualityReport(){
+  // Đánh giá độ dao động của từng chỉ số so với khoảng cách tới ngưỡng cảnh báo của chính nó (bỏ 5% giá trị ở mỗi đầu để loại nhiễu đột xuất)
+  const stat = a => { const v=[...a].sort((x,y)=>x-y), k=Math.floor(v.length*0.05), c=v.slice(k,v.length-k), mu=c.reduce((p,q)=>p+q,0)/c.length; return {mu, sd:Math.sqrt(c.reduce((p,q)=>p+(q-mu)*(q-mu),0)/c.length)}; };
+  const M = 1-threshold;
+  const defs = [['chinShoulder',true,M,'khoảng cách miệng–vai (FHI)','mouth–shoulder distance (FHI)'],
+    ['shoulderW',true,M,'độ rộng vai (RSI)','shoulder width (RSI)'],
+    ['ipd',true,0.15,'khoảng cách hai mắt (độ gần màn hình)','eye distance (screen distance)'],
+    ['neckAngle',false,10,'góc cổ','neck angle'],
+    ['shTilt',false,0.06,'độ lệch vai','shoulder tilt'],
+    ['headTilt',false,0.06,'nghiêng đầu','head tilt']];
+  let worst = {f:0, d:null};
+  defs.forEach(d=>{
+    const vals = calibSamples.map(x=>x[d[0]]).filter(v=>v!==null && v!==undefined && isFinite(v));
+    if(vals.length<5) return;
+    const {mu,sd} = stat(vals);
+    const f = (d[1] ? sd/Math.abs(mu||1) : sd) / d[2];
+    if(f>worst.f) worst = {f, d};
+  });
+  const rej = calibRejected/(calibRejected+calibSamples.length);
+  let score = Math.round(100*Math.max(0, 1-worst.f/0.8)*(1-rej));
+  const few = calibSamples.length<30;
+  if(few) score = Math.min(score,49);
+  const lvl = score>=75?'good':score>=50?'warn':'bad';
+  const vi = {good:'ổn định.',warn:'tạm được, nên ngồi yên hơn.',bad:'chưa ổn định, hãy hiệu chuẩn lại.'}[lvl];
+  const en = {good:'stable.',warn:'acceptable, try to sit still.',bad:'unstable, please recalibrate.'}[lvl];
+  let extraVi = '', extraEn = '';
+  if(few){ extraVi = ` Chỉ thu được ${calibSamples.length} khung hình hợp lệ, hãy kiểm tra ánh sáng và khung hình.`; extraEn = ` Only ${calibSamples.length} valid frames were captured, check lighting and framing.`; }
+  else if(lvl!=='good' && worst.d){ extraVi = ` Dao động nhiều nhất ở: ${worst.d[3]}.`; extraEn = ` Largest fluctuation: ${worst.d[4]}.`; }
+  pauseBtn.disabled = false; calibQuality.className = 'status-banner '+lvl; calibQuality.style.display = 'block';
+  calibQuality.textContent = cs(`Chất lượng hiệu chuẩn: ${score}/100 — ${vi}${extraVi}`, `Calibration quality: ${score}/100 — ${en}${extraEn}`);
+}
+
+function metricsFrom(lm){
+  const nose=lm[0], eyeL=lm[2], eyeR=lm[5], earL=lm[7], earR=lm[8], mouthL=lm[9], mouthR=lm[10], shL=lm[11], shR=lm[12];
+  if(!nose||!eyeL||!eyeR||!mouthL||!mouthR||!shL||!shR) return null;
+  const eyeMid = mid(eyeL,eyeR);
+  const mouthMid = mid(mouthL,mouthR);
+  const shMid = mid(shL,shR);
+  const faceH = dist(eyeMid, mouthMid) * 2; // proxy for face height
+  const chinShoulder = dist(mouthMid, shMid); // proxy: mouth line stands in for chin/jaw
+  const shoulderW = dist(shL, shR);
+  const ipd = dist(eyeL, eyeR); // interpupillary distance -> proxy for distance to screen
+  // neck flexion angle: vector shoulder-mid -> ear-mid vs vertical (degrees). 0 = ear directly above shoulders.
+  let neckAngle = null, headTilt = null;
+  const earVisible = earL && earR && (earL.visibility===undefined || earL.visibility>0.3) && (earR.visibility===undefined || earR.visibility>0.3);
+  if(earVisible){
+    const earMid = mid(earL, earR);
+    const dx = earMid.x - shMid.x, dy = shMid.y - earMid.y; // dy>0 normally (ear above shoulder)
+    neckAngle = Math.atan2(Math.abs(dx), Math.abs(dy)) * 180/Math.PI;
+    headTilt = Math.abs(earL.y - earR.y) / shoulderW; // ear height difference, normalized
+  }
+  const shTilt = Math.abs(shL.y - shR.y) / shoulderW; // shoulder height difference, normalized
+  return { faceH, chinShoulder, shoulderW, ipd, neckAngle, headTilt, shTilt };
+}
+
+function onResults(results){
+  hideLoading();
+  canvasEl.width = videoEl.videoWidth || 640;
+  canvasEl.height = videoEl.videoHeight || 480;
+  ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+  if(!results.poseLandmarks){ if(calibrated && !calibrating) markLost(); return; }
+  const smoothed = smooth(results.poseLandmarks);
+
+  // draw tracked points
+  ctx.fillStyle = '#4FD6C4';
+  [0,2,5,7,8,9,10,11,12].forEach(i=>{
+    const p = smoothed[i]; if(!p) return;
+    ctx.beginPath();
+    ctx.arc(p.x*canvasEl.width, p.y*canvasEl.height, 4, 0, 7);
+    ctx.fill();
+  });
+
+  const m = metricsFrom(smoothed);
+  if(!m) return;
+
+  const visOk = Math.min(...CORE_IDX.map(i=>smoothed[i]?smoothed[i].visibility:0)) >= VIS_MIN;
+  lastM = m; lastVisOk = visOk; lastMT = performance.now();
+  const vv = i => smoothed[i] ? smoothed[i].visibility : 0;
+  lastVP = {face:Math.min(vv(0),vv(2),vv(5),vv(9),vv(10)), sh:Math.min(vv(11),vv(12)), ear:Math.min(vv(7),vv(8))};
+  if(calibrating){
+    if(visOk) calibSamples.push(m); else calibRejected++;
+    return;
+  }
+  if(!calibrated) return;
+  if(!visOk){ markLost(); return; }
+  if(visLost){ visLost = false; overlayLabel.textContent = tr('overlayDone'); }
+
+  const fhiRatio = m.chinShoulder / baseline.chinShoulder;
+  const rsiRatio = m.shoulderW / baseline.shoulderW;
+  animateNumber(fhiVal, fhiRatio*100, 0, '%', false);
+  animateNumber(rsiVal, rsiRatio*100, 0, '%', false);
+
+  const issues = [];
+  if(hy('headForward', fhiRatio<threshold, fhiRatio>threshold+0.05)) issues.push('headForward');
+  if(hy('shoulderRound', rsiRatio<threshold, rsiRatio>threshold+0.05)) issues.push('shoulderRound');
+
+  // neck flexion angle vs baseline (degrees) — only when ears are reliably visible
+  if(m.neckAngle!==null && baseline.neckAngle!==null){
+    const neckDev = m.neckAngle - baseline.neckAngle;
+    animateNumber(neckVal, neckDev, 1, '°', true);
+    const bad = hy('neckBend', neckDev>10, neckDev<7);
+    neckVal.className = 'v '+(bad?'bad':'good'); neckIcon.className = 'micon '+(bad?'bad':'good');
+    if(bad) issues.push('neckBend');
+  } else { neckVal.textContent=tr('lowConfidence'); neckVal.className='v'; neckIcon.className='micon'; }
+
+  // shoulder height asymmetry vs baseline
+  const shDev = m.shTilt - baseline.shTilt;
+  animateNumber(shTiltVal, shDev*100, 1, '%', true);
+  const shBad = hy('shoulderTilt', shDev>0.06, shDev<0.04);
+  shTiltVal.className = 'v '+(shBad?'bad':'good'); shTiltIcon.className = 'micon '+(shBad?'bad':'good');
+  if(shBad) issues.push('shoulderTilt');
+
+  // head tilt (ear height asymmetry) — only when ears reliably visible
+  if(m.headTilt!==null && baseline.headTilt!==null){
+    const headDev = m.headTilt - baseline.headTilt;
+    animateNumber(headTiltVal, headDev*100, 1, '%', true);
+    const hBad = hy('headTilt', headDev>0.06, headDev<0.04);
+    headTiltVal.className = 'v '+(hBad?'bad':'good'); headTiltIcon.className = 'micon '+(hBad?'bad':'good');
+    if(hBad) issues.push('headTilt');
+  } else { headTiltVal.textContent=tr('lowConfidence'); headTiltVal.className='v'; headTiltIcon.className='micon'; }
+
+  const distRatio = m.ipd / baseline.ipd;
+  animateNumber(screenDistVal, distRatio*100, 0, '%', false);
+  const distBad = hy('tooClose', distRatio>1.15, distRatio<1.10);
+  screenDistVal.className = 'v '+(distBad?'bad':'good'); screenDistIcon.className = 'micon '+(distBad?'bad':'good');
+  if(distBad) issues.push('tooClose');
+
+  cushIssues(issues);
+  const isBad = issues.length>0;
+  const now = performance.now();
+  if(lastTick===null) lastTick = now;
+  const dt = now - lastTick; lastTick = now;
+
+  if(isBad){
+    goodSince = null;
+    if(badSince===null) badSince = now;
+    badMs += dt;
+  } else {
+    goodMs += dt;
+    if(goodSince===null) goodSince = now;
+    if(now-goodSince >= GOOD_RESET_MS) badSince = null;
+  }
+  const streakSec = badSince!==null ? (now-badSince)/1000 : 0;
+  animateNumber(streakVal, streakSec, 1, 's', false);
+
+  let level = 'good';
+  if(isBad && streakSec < 5) level = 'warn';
+  if(isBad && streakSec >= 5) level = 'bad';
+
+  camwrap.classList.remove('warn','bad');
+  if(level==='warn') camwrap.classList.add('warn');
+  if(level==='bad') camwrap.classList.add('bad');
+
+  statusBanner.className = 'status-banner '+level;
+  const issueTxt = issues.map(ti).join(', ');
+  currentIssueText = issueTxt;
+  statusBanner.textContent = level==='good' ? tr('bannerGood') :
+    level==='warn' ? `${tr('bannerWarnPrefix')} ${issueTxt} ${tr('bannerWarnSuffix')}` : `${tr('bannerBadPrefix')} ${issueTxt}`;
+
+  let gaugeScore = 100;
+  if(isBad){ gaugeScore = streakSec<5 ? 100-(streakSec/5)*60 : Math.max(0,40-((streakSec-5)/10)*40); }
+  const gaugeText = level==='good' ? tr('gaugeGood') : level==='warn' ? tr('gaugeWarn') : tr('gaugeBad');
+  setGauge(gaugeScore, level, gaugeText);
+  gaugeSub.textContent = level==='good' ? tr('gaugeSubGood') : (issueTxt || tr('gaugeSubWaiting'));
+  const fB = issues.includes('headForward'); fhiVal.className = 'v '+(fB?'bad':'good'); fhiIcon.className = 'micon '+(fB?'bad':'good');
+  const rB = issues.includes('shoulderRound'); rsiVal.className = 'v '+(rB?'bad':'good'); rsiIcon.className = 'micon '+(rB?'bad':'good');
+
+  if(level==='bad'){
+    if(!camwrap.dataset.alerted){
+      camwrap.dataset.alerted = '1'; alerts++; alertCount.textContent = alerts; popEl(alertCount);
+      fireAlert();
+      stopAlertLoop();
+      alertInterval = setInterval(fireAlert, 5000);
+    }
+  } else {
+    if(badSince===null) camwrap.dataset.alerted = '';
+    stopAlertLoop();
+  }
+
+  const total = goodMs+badMs;
+  if(total>0) animateNumber(goodPct, goodMs/total*100, 0, '%', false); else goodPct.textContent='—';
+
+  // log once per 5 seconds
+  const nowBucket = Math.floor(now/5000);
+  if(camwrap.dataset.lastLog !== String(nowBucket)){
+    camwrap.dataset.lastLog = String(nowBucket);
+    const secNum = sessionStart ? Math.round((now-sessionStart)/1000) : 0;
+    const tstamp = secNum+'s';
+    const levelTxt = level==='good'?tr('gaugeGood'):level==='warn'?tr('gaugeWarn'):tr('gaugeBad');
+    logRows.push({t:tstamp, sec:secNum, fhi:Math.round(fhiRatio*100), rsi:Math.round(rsiRatio*100), status:level, issues:issueTxt, issueKeys:issues.slice(), cush:cushLog()});
+    const rowEl = document.createElement('tr');
+    rowEl.innerHTML = `<td>${tstamp}</td><td>${Math.round(fhiRatio*100)}</td><td>${Math.round(rsiRatio*100)}</td><td>${levelTxt}</td><td>${issueTxt}</td>`;
+    logBody.prepend(rowEl);
+    while(logBody.children.length>200) logBody.removeChild(logBody.lastChild);
+    exportBtn.disabled = false;
+    reportBtn.disabled = false;
+    drawTrend();
+  }
+}
+
+const pose = new Pose({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 820;
+pose.setOptions({modelComplexity:isMobileDevice?0:1, smoothLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
+pose.onResults(onResults);
+
+let camera = null;
+let lastSendTime = 0;
+const SEND_INTERVAL_MS = isMobileDevice ? 90 : 60; // ~11fps di động / ~16fps desktop — đủ mượt, nhẹ CPU/pin
+async function startCamera(){
+  loadingSub.textContent = tr('loadingCamera');
+  loadingBarFill.style.width = '65%';
+  camera = new Camera(videoEl, {
+    onFrame: async () => {
+      const t = performance.now();
+      if(paused || t - lastSendTime < SEND_INTERVAL_MS) return;
+      lastSendTime = t;
+      await pose.send({image: videoEl});
+    },
+    width: 640, height: 480
+  });
+  await camera.start();
+}
+startCamera().catch(()=>{ overlayLabel.textContent = tr('overlayNoCam'); loadingSub.textContent=tr('loadingCamError'); setTimeout(hideLoading,1500); });
+resizeTrendCanvas(); drawTrend();
+
+calibBtn.onclick = () => {
+  requestNotifyPermission();
+  calibrating = true; calibSamples = []; calibrated = false; cush.sitBuf = []; hReset(); calibRejected = 0;
+  calibBtn.disabled = true;
+  let cd = 5;
+  overlayLabel.textContent = `${tr('overlayCountdown')} ${cd}s`;
+  const iv = setInterval(()=>{
+    cd--;
+    if(cd<=0){
+      clearInterval(iv);
+      calibrating = false;
+      if(calibSamples.length < 5){
+        overlayLabel.textContent = tr('overlayFail');
+        calibBtn.disabled = false;
+        return;
+      }
+      const avg = k => calibSamples.reduce((s,x)=>s+x[k],0)/calibSamples.length;
+      const avgSafe = k => { const vals = calibSamples.map(x=>x[k]).filter(v=>v!==null&&v!==undefined); return vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null; };
+      baseline = { faceH: avg('faceH'), chinShoulder: avg('chinShoulder'), shoulderW: avg('shoulderW'),
+        ipd: avg('ipd'), neckAngle: avgSafe('neckAngle'), headTilt: avgSafe('headTilt'), shTilt: avg('shTilt') };
+      calibrated = true; cushCalibrate(); calibQualityReport();
+      sessionStart = performance.now(); sessionEndedAt = null; lastTick = null; goodMs=0; badMs=0; alerts=0; alertCount.textContent=0;
+      logRows=[]; logBody.innerHTML=''; exportBtn.disabled=true; reportBtn.disabled=true; endBtn.disabled=false; reportCard.style.display='none';
+      overlayLabel.textContent = tr('overlayDone');
+      statusBanner.className = 'status-banner good';
+      statusBanner.textContent = tr('bannerGood');
+      setGauge(100,'good',tr('gaugeGood'));
+      gaugeSub.textContent = tr('gaugeSubGood');
+      calibBtn.disabled = false;
+    } else {
+      overlayLabel.textContent = `${tr('overlayCountdown')} ${cd}s`;
+    }
+  }, 1000);
+};
+
+// ===== Hộp thoại checklist trước khi hiệu chuẩn =====
+let lastVP = null, calibChipTimer = null;
+const startCalibration = calibBtn.onclick;
+const calibModalEl = document.getElementById('calibModal'), calibStartEl = document.getElementById('calibStartNow'), calibCancelEl = document.getElementById('calibCancel');
+document.body.appendChild(calibModalEl); // đưa ra ngoài .wrap để luôn căn giữa theo khung nhìn
+const CK_IDS = ['ckEye','ckLight','ckBody','ckSit'];
+function updateCalibChips(){
+  const fresh = lastVP && performance.now()-lastMT<700;
+  const set = (id,ok,vi,en)=>{ const el=document.getElementById(id); el.textContent=cs(vi,en); el.className='live-chip '+(ok?'ok':'bad'); };
+  const fOk = !!fresh && lastVP.face>=VIS_MIN, sOk = !!fresh && lastVP.sh>=VIS_MIN, eOk = !!fresh && lastVP.ear>=0.3;
+  set('chipFace',fOk,'Mặt','Face'); set('chipShoulders',sOk,'Hai vai','Both shoulders'); set('chipEars',eOk,'Hai tai','Both ears');
+  document.getElementById('earWarn').style.display = (fOk&&sOk&&!eOk) ? 'block' : 'none';
+  calibStartEl.disabled = !(CK_IDS.every(id=>document.getElementById(id).checked) && fOk && sOk);
+}
+function closeCalibModal(){ calibModalEl.classList.remove('show'); clearInterval(calibChipTimer); calibChipTimer = null; }
+calibBtn.onclick = () => {
+  CK_IDS.forEach(id=>{ document.getElementById(id).checked = false; });
+  calibModalEl.classList.add('show'); updateCalibChips();
+  calibChipTimer = setInterval(updateCalibChips, 300);
+};
+CK_IDS.forEach(id=>document.getElementById(id).addEventListener('change', updateCalibChips));
+calibStartEl.onclick = () => { closeCalibModal(); startCalibration(); };
+calibCancelEl.onclick = closeCalibModal;
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && calibModalEl.classList.contains('show')) closeCalibModal(); });
+
+// ===== Lịch sử phiên (localStorage, giữ 30 phiên gần nhất) =====
+const HIST_KEY = 'sp_history';
+const histBody = document.getElementById('histBody'), histEmpty = document.getElementById('histEmpty'), histCompare = document.getElementById('histCompare');
+function histLoad(){ try{ return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); }catch(e){ return []; } }
+function histSave(a){ try{ localStorage.setItem(HIST_KEY, JSON.stringify(a.slice(-30))); }catch(e){} }
+function saveSession(){
+  if(logRows.length<3 || !sessionStart) return;
+  const total = goodMs+badMs, cnt = {};
+  logRows.forEach(r=>(r.issueKeys||[]).forEach(k=>{ cnt[k]=(cnt[k]||0)+1; }));
+  const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  const a = histLoad();
+  a.push({ts:Date.now(), dur:Math.round(((sessionEndedAt||performance.now())-sessionStart)/1000), good:total>0?Math.round(goodMs/total*100):0, alerts, top:top?top[0]:null});
+  histSave(a); renderHistory();
+}
+function renderHistory(){
+  const a = histLoad(), rows = a.slice().reverse();
+  const fmt = new Intl.DateTimeFormat(currentLang==='vi'?'vi-VN':'en-GB', {dateStyle:'short', timeStyle:'short'});
+  histBody.innerHTML = rows.map((s,i)=>{
+    const prev = a[a.length-2-i], d = prev ? s.good-prev.good : null;
+    const dTxt = d===null ? '—' : `<span class="hist-delta ${d>=0?'up':'down'}">${d>=0?'+':''}${d} ${cs('điểm','pts')}</span>`;
+    return `<tr><td>${fmt.format(s.ts)}</td><td>${formatDuration(s.dur)}</td><td>${s.good}%</td><td>${dTxt}</td><td>${s.top&&ISSUES[s.top]?ti(s.top):''}</td></tr>`;
+  }).join('');
+  histEmpty.style.display = a.length ? 'none' : 'block';
+  if(a.length>=2){
+    const last = a[a.length-1], base = a.slice(Math.max(0,a.length-6),-1);
+    const d = last.good - Math.round(base.reduce((x,s)=>x+s.good,0)/base.length);
+    histCompare.textContent = cs(`Phiên gần nhất ${last.good}% tốt, ${d>=0?'cao hơn':'thấp hơn'} trung bình ${base.length} phiên trước ${Math.abs(d)} điểm.`,
+      `Latest session ${last.good}% good, ${Math.abs(d)} pts ${d>=0?'above':'below'} the average of the previous ${base.length}.`);
+  } else histCompare.textContent = '';
+}
+document.getElementById('clearHistBtn').onclick = () => {
+  if(confirm(cs('Xóa toàn bộ lịch sử phiên trên máy này?','Delete all session history on this device?'))){ histSave([]); renderHistory(); }
+};
+endBtn.addEventListener('click', ()=>setTimeout(saveSession,0));
+langToggle.addEventListener('click', renderHistory);
+renderHistory();
+
+resetBtn.onclick = () => {
+  stopAlertLoop();
+  calibQuality.style.display='none'; hReset(); goodSince=null; visLost=false;
+  calibrated = false; badSince=null; alerts=0; goodMs=0; badMs=0; logRows=[]; sessionStart=null; sessionEndedAt=null;
+  logBody.innerHTML=''; exportBtn.disabled=true; reportBtn.disabled=true; endBtn.disabled=true; reportCard.style.display='none';
+  camwrap.classList.remove('warn','bad');
+  [fhiVal,rsiVal,neckVal,shTiltVal,headTiltVal,screenDistVal,streakVal,goodPct].forEach(el=>{ delete el.dataset.raw; });
+  fhiVal.textContent='—'; rsiVal.textContent='—'; streakVal.textContent='0.0s';
+  neckVal.textContent='—'; shTiltVal.textContent='—'; headTiltVal.textContent='—'; screenDistVal.textContent='—';
+  [fhiVal,rsiVal,neckVal,shTiltVal,headTiltVal,screenDistVal].forEach(el=>el.className='v');
+  [fhiIcon,rsiIcon,neckIcon,shTiltIcon,headTiltIcon,screenDistIcon].forEach(el=>el.className='micon');
+  alertCount.textContent='0'; goodPct.textContent='—';
+  overlayLabel.textContent = tr('overlayIdle');
+  statusBanner.className='status-banner'; statusBanner.textContent=tr('bannerWaiting');
+  setGauge(50,'',tr('bannerWaiting'));
+  gaugeSub.textContent = tr('gaugeSubIdle');
+  drawTrend();
+};
+
+exportBtn.onclick = () => {
+  const header = 'time,fhi_percent,rsi_percent,status,issues,cushion_T,cushion_bLR,cushion_tLR,cushion_FB,ch1,ch2,ch3,ch4\n';
+  const body = logRows.map(r=>`${r.t},${r.fhi},${r.rsi},${r.status},"${r.issues}",${r.cush||',,,,,,,'}`).join('\n');
+  const csv = header+body;
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'smartposture_data.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+function formatDuration(sec){
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function statusLabel(status){
+  return status==='good'?tr('gaugeGood'):status==='warn'?tr('gaugeWarn'):tr('gaugeBad');
+}
+function endSession(){
+  stopAlertLoop();
+  sessionEndedAt = performance.now();
+  calibrated = false;
+  badSince = null;
+  camwrap.classList.remove('warn','bad');
+  camwrap.dataset.alerted = '';
+  overlayLabel.textContent = tr('overlayEnded');
+  statusBanner.className = 'status-banner';
+  statusBanner.textContent = tr('bannerEnded');
+  setGauge(50,'',tr('overlayEnded'));
+  gaugeSub.textContent = tr('gaugeSubEnded');
+  endBtn.disabled = true;
+  reportBtn.disabled = logRows.length===0;
+  generateReport();
+}
+endBtn.onclick = endSession;
+
+function generateReport(){
+  if(logRows.length < 3){
+    reportBody.innerHTML = `<div class="report-text">${tr('reportNoData')}</div>`;
+    reportCard.style.display='block';
+    reportCard.scrollIntoView({behavior:'smooth', block:'nearest'});
+    return;
+  }
+  const rows = logRows.slice().reverse(); // oldest -> newest (logRows is newest-first)
+  const n = rows.length;
+  const badRows = rows.filter(r=>r.status!=='good');
+  const avgFhi = Math.round(rows.reduce((s,r)=>s+r.fhi,0)/n);
+  const avgRsi = Math.round(rows.reduce((s,r)=>s+r.rsi,0)/n);
+  const total = goodMs+badMs;
+  const goodPctVal = total>0 ? Math.round(goodMs/total*100) : Math.round((n-badRows.length)/n*100);
+  const durationSec = sessionStart ? Math.round(((sessionEndedAt||performance.now())-sessionStart)/1000) : (rows[n-1].sec||0);
+
+  // Tần suất lỗi
+  const issueCount = {};
+  rows.forEach(r=>(r.issueKeys||[]).forEach(k=>{ issueCount[k]=(issueCount[k]||0)+1; }));
+  const sortedIssues = Object.entries(issueCount).sort((a,b)=>b[1]-a[1]);
+
+  // Chia theo từng phút để tìm thời điểm hay sai
+  const totalSec = Math.max(...rows.map(r=>r.sec||0), 0);
+  const segLenSec = Math.max(60, Math.ceil(totalSec/6/30)*30); // ~phút, tối thiểu 60s, tối đa ~6 đoạn
+  const segments = [];
+  for(let startSec=0; startSec<=totalSec; startSec+=segLenSec){
+    const endSec = Math.min(startSec+segLenSec, totalSec);
+    const segRows = rows.filter(r=>r.sec>=startSec && r.sec<=endSec);
+    if(segRows.length===0) continue;
+    const segBad = segRows.filter(r=>r.status!=='good');
+    const badRatio = segBad.length/segRows.length;
+    const segIssueCount = {};
+    segBad.forEach(r=>(r.issueKeys||[]).forEach(k=>{ segIssueCount[k]=(segIssueCount[k]||0)+1; }));
+    const topSegIssue = Object.entries(segIssueCount).sort((a,b)=>b[1]-a[1])[0];
+    segments.push({startSec, endSec, badRatio, topIssue: topSegIssue?topSegIssue[0]:null});
+  }
+  const minToStr = s => Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+
+  // Xu hướng: nửa đầu vs nửa sau
+  const half = Math.floor(n/2);
+  const firstHalf = rows.slice(0, half), secondHalf = rows.slice(half);
+  const badRatioOf = arr => arr.length ? arr.filter(r=>r.status!=='good').length/arr.length : 0;
+  const r1 = badRatioOf(firstHalf), r2 = badRatioOf(secondHalf);
+  const diff = r2-r1;
+  let trendText;
+  if(diff > 0.15) trendText = tr('repTrendWorse');
+  else if(diff < -0.15) trendText = tr('repTrendBetter');
+  else trendText = tr('repTrendStable');
+
+  // Nhận xét tổng quan
+  const assessText = goodPctVal>=80 ? tr('repAssessGood') : goodPctVal>=50 ? tr('repAssessMed') : tr('repAssessBad');
+
+  const statsHtml = `<div class="report-stats">
+    <div class="report-stat"><span class="n">${formatDuration(durationSec)}</span><span class="l">${tr('repDuration')}</span></div>
+    <div class="report-stat"><span class="n">${goodPctVal}%</span><span class="l">${tr('repGoodPct')}</span></div>
+    <div class="report-stat"><span class="n">${avgFhi}%</span><span class="l">${tr('repAvgFhi')}</span></div>
+    <div class="report-stat"><span class="n">${avgRsi}%</span><span class="l">${tr('repAvgRsi')}</span></div>
+    <div class="report-stat"><span class="n">${alerts}</span><span class="l">${tr('repAlerts')}</span></div>
+  </div>`;
+
+  const segBad = segments.filter(s=>s.badRatio>0.25);
+  const timeHtml = segBad.length===0
+    ? `<div class="report-text">${tr('repTimeNone')}</div>`
+    : `<ul class="report-list">${segBad.map(s=>
+        `<li>${tr('repSegment')} ${minToStr(s.startSec)}–${minToStr(s.endSec)}: ${Math.round(s.badRatio*100)}% ${level2word(s.badRatio)}${s.topIssue?' — '+ti(s.topIssue):''}</li>`
+      ).join('')}</ul>`;
+
+  function level2word(ratio){ return currentLang==='vi' ? 'lệch tư thế' : 'posture deviation'; }
+
+  const topIssueHtml = sortedIssues.length ? `<div class="report-text" style="margin-top:10px">${tr('repTopIssue')}: <b>${ti(sortedIssues[0][0])}</b> (${sortedIssues[0][1]} ${tr('repOutOf')} ${n} ${tr('repLogs')})</div>` : '';
+
+  const logRowsHtml = rows.length
+    ? rows.map(r=>`<tr><td>${r.t}</td><td>${r.fhi}</td><td>${r.rsi}</td><td>${statusLabel(r.status)}</td><td>${r.issues||''}</td></tr>`).join('')
+    : `<tr><td colspan="5">${tr('repLogEmpty')}</td></tr>`;
+
+  reportBody.innerHTML = `
+    <div class="report-section">
+      <div class="report-h">${tr('repOverview')}</div>
+      ${statsHtml}
+      <div class="report-text" style="margin-top:12px">${assessText}</div>
+    </div>
+    <div class="report-section">
+      <div class="report-h">${tr('repTimeHeader')}</div>
+      ${timeHtml}
+    </div>
+    <div class="report-section">
+      <div class="report-h">${tr('repTrendHeader')}</div>
+      <div class="report-text">${trendText}</div>
+      ${topIssueHtml}
+    </div>
+    <div class="report-section">
+      <div class="report-h">${tr('repLogHeader')}</div>
+      <div class="logbox">
+        <table>
+          <thead><tr><th>${tr('thTime')}</th><th>FHI%</th><th>RSI%</th><th>${tr('thStatus')}</th><th>${tr('thIssues')}</th></tr></thead>
+          <tbody>${logRowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  reportCard.style.display='block';
+  reportCard.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+reportBtn.onclick = generateReport;
+
+setInterval(()=>{
+  if(!sessionStart){ sessionClock.textContent='00:00'; return; }
+  const s = Math.floor(((sessionEndedAt||performance.now())-sessionStart)/1000);
+  const m = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
+  sessionClock.textContent = `${m}:${ss}`;
+}, 500);
+</script>
+</body>
+</html>
